@@ -5,6 +5,8 @@ A COBOL banking application (validate → update → report) compiled and run on
 FTP, with a Jenkins CI/CD pipeline and a local-vs-Oracle-Cloud comparative
 benchmark.
 
+> Step-by-step run guide (commands only): [`RUN.md`](RUN.md)
+
 ## Application
 
 | Program    | Role |
