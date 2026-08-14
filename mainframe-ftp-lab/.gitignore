@@ -1,0 +1,82 @@
+# Operating System
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker
+.docker/
+
+# Generated/Runtime directories
+# (ftphome/ is intentionally tracked: it holds the COBOL/JCL/data source
+#  files that are FTP-uploaded to the mainframe)
+dasd/
+prt/
+pch/
+log/
+
+# Docker volumes (if using local bind mounts)
+docker/dasd/
+docker/prt/
+docker/pch/
+docker/log/
+docker/ftp/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Node modules (if any future JS tooling)
+node_modules/
+
+# Python (if any future Python tooling)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+
+# Archives
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+
+# JCL output files (if you want to ignore generated output)
+# Uncomment the lines below if you don't want to track JCL outputs
+# *.out
+# *.lst
+# JES*
+
+# Personal notes and drafts
+notes.md
+draft*
+TODO.md
+NOTES.txt

@@ -1,0 +1,35 @@
+services:
+  # --- Mainframe Simulator (MVS 3.8j / TK4-) ---
+  tk4:
+    image: skunklabz/tk4-hercules:latest
+    container_name: tk4
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    ports:
+      - "3270:3270"   # TN3270 terminal
+      - "8038:8038"   # Hercules web console
+      - "3505:3505"   # Card reader / JCL submit port
+    # Keep it simple - minimal volumes like the basic docker run command
+    volumes:
+      - ../jcl:/tk4-/jcl           # JCL workspace from root
+
+  # --- FTP Server for SITE/QUOTE testing ---
+  ftp:
+    image: stilliard/pure-ftpd:latest
+    container_name: ftp
+    restart: unless-stopped
+    ports:
+      - "2121:21"                   # FTP control
+      - "30000-30009:30000-30009"   # passive data ports
+    environment:
+      PUBLICHOST: "127.0.0.1"
+      FTP_USER_NAME: "dev"
+      FTP_USER_PASS: "devpass"
+      FTP_USER_HOME: "/home/dev"
+      PASV_MIN_PORT: "30000"
+      PASV_MAX_PORT: "30009"
+      ADDED_FLAGS: "--umask 002:002 --createhome"
+    volumes:
+      - ../ftphome:/home/dev
+      - ../jcl:/home/dev/jcl:ro      # JCL files from root

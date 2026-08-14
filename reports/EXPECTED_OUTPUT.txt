@@ -1,0 +1,28 @@
+TRANSACTION VALIDATION REPORT                260729
+
+VALIDATION SUMMARY
+
+TOTAL TRANSACTIONS READ:       13
+VALID TRANSACTIONS:             7
+INVALID TRANSACTIONS:           6
+ACCOUNT UPDATE REPORT                        260729
+
+UPDATE SUMMARY
+
+TOTAL TRANSACTIONS PROCESSED:       7
+DEPOSITS PROCESSED:                 4
+WITHDRAWALS PROCESSED:              3
+BANK ACCOUNT BALANCE REPORT                       260729
+
+ACCOUNT     HOLDER NAME                     BALANCE        STATUS
+--------------------------------------------------------------------------------
+1000000001  John Smith                        $50300.00  ACTIVE
+1000000002  Jane Doe                         $125800.00  ACTIVE
+1000000003  Robert Johnson                     $2550.00  ACTIVE
+1000000004  Alice Williams                      $550.00  ACTIVE
+1000000005  Closed Account                    $10000.00  CLOSED
+1000000006  Frozen Account                   $500000.00  FROZEN
+
+================================================================================
+TOTAL ACCOUNTS REPORTED:            6
+COMBINED TOTAL BALANCE:            $689200.00
