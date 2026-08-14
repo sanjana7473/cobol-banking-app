@@ -9,12 +9,16 @@ Subcommands:
   all       compile + run (equivalent to run-all.py, but idempotent).
   extract   Extract the BANKRUN report block from a local printer file.
 
-The JES2 reader (port 3505) and the Hercules web syslog (port 8038) are plain
-TCP/HTTP endpoints, so these commands work against a local OR remote mainframe
-without SSH. Any failure exits non-zero so Jenkins fails the stage.
+Submission transport (env MF_SUBMIT, or --submit):
+  ftp     Write each JCL file to the FTP server watched by tk5-ftp-watcher.sh,
+          which auto-submits it to the JES2 reader. (default)
+  socket  Write JCL directly to the JES2 reader port (3505).
 
-This reuses the exact JCL from run-all.py. Phase 2 will consolidate run-all.py
-to delegate to this module so there is a single source of truth.
+Completion is detected by polling (the syslog for compile jobs, the printer
+file for the BANKRUN report), so timing reflects real wall-clock execution —
+not fixed sleeps — which makes the local-vs-cloud comparison meaningful.
+
+Any failure exits non-zero so Jenkins fails the stage.
 """
 
 import argparse
@@ -22,7 +26,9 @@ import json
 import os
 import re
 import socket
+import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 
@@ -42,20 +48,61 @@ COBOL_SYSLIB = os.environ.get("COBOL_SYSLIB", "SYS1.COBLIB")
 LINKER = os.environ.get("LINKER", "IEWL")
 LINKER_PARMS = os.environ.get("LINKER_PARMS", "LIST,XREF")
 
+# --- Submission transport ---------------------------------------------------
+# "ftp" uploads each JCL file to the FTP server watched by tk5-ftp-watcher.sh
+# (which auto-submits it to the JES2 reader). "socket" writes directly to the
+# reader port. Default is "ftp" per project requirements.
+SUBMIT_TRANSPORT = os.environ.get("MF_SUBMIT", "ftp").lower()
+FTP_HOST = os.environ.get("FTP_HOST", "127.0.0.1")
+FTP_PORT = os.environ.get("FTP_PORT", "2121")
+FTP_USER = os.environ.get("FTP_USER", "herc01")
+FTP_PASS = os.environ.get("FTP_PASS", "cul8tr")
+FTP_DIR = os.environ.get("FTP_DIR", "/")
+
 
 # ---------------------------------------------------------------------------
 # JCL builders (identical to run-all.py)
 # ---------------------------------------------------------------------------
 
+_submit_seq = 0
+
+
 def submit(jcl, host, port, label=""):
-    data = jcl.encode("ascii")
-    s = socket.socket()
-    s.settimeout(15)
-    s.connect((host, port))
-    s.sendall(data)
-    time.sleep(0.3)
-    s.close()
-    print(f"  OK: {label} ({len(data)} bytes)")
+    """Submit JCL to the mainframe reader via the configured transport."""
+    global _submit_seq
+    _submit_seq += 1
+
+    if SUBMIT_TRANSPORT == "socket":
+        data = jcl.encode("ascii")
+        s = socket.socket()
+        s.settimeout(15)
+        s.connect((host, port))
+        s.sendall(data)
+        time.sleep(0.3)
+        s.close()
+        print(f"  OK: {label} ({len(data)} bytes via socket)")
+        return
+
+    # FTP transport: write the JCL to a uniquely-named temp file and upload it;
+    # tk5-ftp-watcher.sh picks it up and submits it to the JES2 reader.
+    fd, path = tempfile.mkstemp(prefix=f"jcl_{label}_", suffix=".jcl")
+    with os.fdopen(fd, "w") as f:
+        f.write(jcl)
+    name = os.path.basename(path)
+    url = f"ftp://{FTP_USER}:{FTP_PASS}@{FTP_HOST}:{FTP_PORT}{FTP_DIR.rstrip('/')}/{name}"
+    try:
+        r = subprocess.run(["curl", "-sS", "-T", path, url],
+                           capture_output=True, text=True, timeout=60)
+        if r.returncode != 0:
+            msg = (r.stderr or r.stdout or "").strip()
+            print(f"  FTP upload FAILED for {label}: {msg}", file=sys.stderr)
+            raise RuntimeError(f"FTP upload failed for {label}: {msg}")
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    print(f"  OK: {label} ({len(jcl.encode('ascii'))} bytes via FTP)")
 
 
 def reset_jcl():
@@ -195,26 +242,103 @@ def check_ok(lines):
 
 
 # ---------------------------------------------------------------------------
+# Completion polling (real wall-clock timing)
+# ---------------------------------------------------------------------------
+
+def _snap(url):
+    return fetch_syslog(url)
+
+
+def _done(jobname, lines, require_link=False, require_end=False):
+    for l in lines:
+        if jobname not in l:
+            continue
+        if "HASP395" in l or "ENDED" in l:
+            return True
+        if require_end:
+            continue
+        if "IEFACTRT" in l and (not require_link or "LKED" in l):
+            return True
+    return False
+
+
+def wait_for(jobnames, before, syslog_url, min_wait=3, timeout=240, poll=2,
+             require_link=False, require_end=False):
+    """Poll the syslog until every job shows completion.
+
+    Returns (elapsed_seconds, new_lines_since_before). Falls back to returning
+    the lines collected so far on timeout (caller still checks return codes).
+    """
+    t0 = time.time()
+    time.sleep(min_wait)
+    while True:
+        after = _snap(syslog_url)
+        lines = new_lines(before, after) if after else []
+        if after is not None and all(_done(jn, lines, require_link, require_end) for jn in jobnames):
+            return round(time.time() - t0, 2), lines
+        if time.time() - t0 >= timeout:
+            return round(time.time() - t0, 2), lines
+        time.sleep(poll)
+
+
+def count_bankrun_ends(printer):
+    """Count completed BANKRUN blocks (END markers) in a printer file."""
+    if not printer:
+        return 0
+    try:
+        with open(printer, errors="replace") as f:
+            raw = f.read()
+    except OSError:
+        return 0
+    return len(re.findall(r"END\s+JOB.*BANKRUN|JOB.*BANKRUN.*END", raw))
+
+
+def wait_for_report(printer, baseline_ends, timeout=240, poll=2):
+    """Wait until a new BANKRUN block completes, then return its report.
+
+    Returns (elapsed_seconds, report_text). The report is extracted from the
+    LAST completed BANKRUN block in the (accumulating) printer file.
+    """
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        try:
+            with open(printer, errors="replace") as f:
+                raw = f.read()
+        except OSError:
+            time.sleep(poll)
+            continue
+        if len(re.findall(r"END\s+JOB.*BANKRUN|JOB.*BANKRUN.*END", raw)) > baseline_ends:
+            return round(time.time() - t0, 2), extract_report_text(raw)
+        time.sleep(poll)
+    try:
+        with open(printer, errors="replace") as f:
+            report = extract_report_text(f.read())
+    except OSError:
+        report = ""
+    return round(time.time() - t0, 2), report
+
+
+# ---------------------------------------------------------------------------
 # Report extraction + normalization
 # ---------------------------------------------------------------------------
 
 def extract_report_text(raw):
-    """Extract the BANKRUN report block from a Hercules printer file.
+    """Extract the LAST completed BANKRUN report block from a printer file.
 
-    Locates the block between the JES2 "START  JOB ... BANKRUN" and
-    "END   JOB ... BANKRUN" markers, then keeps everything from the first
-    "TRANSACTION VALIDATION REPORT" header onward except JES2 control lines.
-    Report lines are kept verbatim (including blank lines and account-detail
-    lines, which begin with a 10-digit account number).
+    Keeps everything from the first "TRANSACTION VALIDATION REPORT" header
+    onward within that block, except JES2 control lines. Report lines are kept
+    verbatim (including blank lines and account-detail lines, which begin with
+    a 10-digit account number).
     """
     lines = raw.split("\n")
-    start = end = None
-    for i, l in enumerate(lines):
-        if re.search(r"START\s+JOB.*BANKRUN", l) and start is None:
-            start = i
-        if re.search(r"END\s+JOB.*BANKRUN|JOB.*BANKRUN.*END", l):
-            end = i
-    block = lines[start + 1:end] if (start is not None and end is not None and end >= start) else lines
+    starts = [i for i, l in enumerate(lines) if re.search(r"START\s+JOB.*BANKRUN", l)]
+    ends = [i for i, l in enumerate(lines) if re.search(r"END\s+JOB.*BANKRUN|JOB.*BANKRUN.*END", l)]
+    if starts and ends:
+        end = ends[-1]
+        start = max(s for s in starts if s < end)
+        block = lines[start + 1:end]
+    else:
+        block = lines
 
     report_start = None
     for i, l in enumerate(block):
@@ -252,49 +376,44 @@ def normalize_report(text):
 # Core operations
 # ---------------------------------------------------------------------------
 
-def _snap(url):
-    return fetch_syslog(url)
-
-
 def do_compile(host, port, syslog_url):
     """Reset, allocate, and compile all programs. Returns (seconds, bad_lines)."""
-    t0 = time.time()
     before = _snap(syslog_url)
     submit(reset_jcl(), host, port, "RESET")
-    time.sleep(4)
+    _, _ = wait_for(["RESET"], before, syslog_url, min_wait=3, timeout=90, require_end=True)
     mid = _snap(syslog_url)          # discard the reset job's expected errors
+
     submit(alloc_load_jcl(), host, port, "ALLOC")
-    time.sleep(4)
     for pgm in PROGRAMS:
         print(f"[compile] {pgm}...")
         submit(compile_jcl(pgm), host, port, pgm)
-        time.sleep(4)
-    print("Waiting 15s for compiles to finish...")
-    time.sleep(15)
-    after = _snap(syslog_url)
-    lines = new_lines(mid, after)
+
+    jobnames = [p[:4] + "COMP" for p in PROGRAMS]
+    secs, lines = wait_for(jobnames, mid, syslog_url, min_wait=6, timeout=300, require_link=True)
     for l in iefactrt_lines(lines):
         print("  " + l)
-    return round(time.time() - t0, 2), check_ok(lines)
+    return secs, check_ok(lines)
 
 
 def do_run(host, port, syslog_url, printer=None, report_out=None):
-    """Submit BANKRUN and check return codes. Returns (seconds, bad_lines)."""
-    t0 = time.time()
+    """Submit BANKRUN and wait for its report. Returns (seconds, bad_lines)."""
     before = _snap(syslog_url)
+    baseline = count_bankrun_ends(printer)
     submit(bankrun_jcl(), host, port, "BANKRUN")
-    print("Waiting 18s for BANKRUN to complete...")
-    time.sleep(18)
+
+    if printer:
+        secs, report = wait_for_report(printer, baseline, timeout=300)
+        if report and report_out:
+            write_file(report_out, report)
+        elif report_out:
+            print(f"  (report not produced from {printer})", file=sys.stderr)
+    else:
+        secs, _ = wait_for(["BANKRUN"], before, syslog_url, min_wait=6, timeout=300, require_end=True)
+
     after = _snap(syslog_url)
-    lines = new_lines(before, after)
+    lines = new_lines(before, after) if after else []
     for l in iefactrt_lines(lines):
         print("  " + l)
-    secs = round(time.time() - t0, 2)
-    if printer and report_out and os.path.exists(printer):
-        with open(printer, errors="replace") as f:
-            write_file(report_out, extract_report_text(f.read()))
-    elif printer and report_out:
-        print(f"  (printer file not found: {printer})", file=sys.stderr)
     return secs, check_ok(lines)
 
 
@@ -330,9 +449,17 @@ def _add_mf(sp):
     sp.add_argument("--host", default="127.0.0.1")
     sp.add_argument("--port", type=int, default=3505)
     sp.add_argument("--syslog-url", default="http://127.0.0.1:8038/cgi-bin/tasks/syslog")
+    sp.add_argument("--submit", choices=["ftp", "socket"], default=SUBMIT_TRANSPORT,
+                    help="submission transport (default from MF_SUBMIT, else ftp)")
+
+
+def _apply_submit(args):
+    global SUBMIT_TRANSPORT
+    SUBMIT_TRANSPORT = args.submit
 
 
 def cmd_compile(args):
+    _apply_submit(args)
     secs, bad = do_compile(args.host, args.port, args.syslog_url)
     write_json(args.timing_out, {"compile_seconds": secs})
     _fail(bad, "compile")
@@ -340,6 +467,7 @@ def cmd_compile(args):
 
 
 def cmd_run(args):
+    _apply_submit(args)
     secs, bad = do_run(args.host, args.port, args.syslog_url, args.printer, args.report_out)
     write_json(args.timing_out, {"run_seconds": secs})
     _fail(bad, "run")
@@ -347,6 +475,7 @@ def cmd_run(args):
 
 
 def cmd_all(args):
+    _apply_submit(args)
     c_secs, c_bad = do_compile(args.host, args.port, args.syslog_url)
     r_secs, r_bad = do_run(args.host, args.port, args.syslog_url, args.printer, args.report_out)
     write_json(args.timing_out, {"compile_seconds": c_secs, "run_seconds": r_secs})

@@ -124,30 +124,49 @@ Build a Jenkins CI/CD pipeline that:
 
 ---
 
+## Benchmark Harness — 14× local vs 14× cloud (FTP)
+
+- [x] **FTP transport**: `ci/pipeline.py` submits JCL via FTP (default `MF_SUBMIT=ftp`,
+  `herc01`/`cul8tr` on port 2121) so TK5's `tk5-ftp-watcher.sh` auto-submits to JES2
+- [x] **Completion polling + real wall-clock timing** (syslog for compile, printer file for run)
+- [x] `ci/benchmark.py` — runs N full compile+run pipelines, records per-run
+  compile/run/total seconds, RC, and golden fidelity → `benchmark.json`
+- [x] `ci/run-benchmark.sh <A|B> <host>` — runs the benchmark on a target env (local/SSH)
+- [x] `ci/compare-benchmarks.py` — side-by-side build-time stats (mean/median/σ/min/max),
+  fidelity, verdict → `comparison.json` + `comparison.md`
+- [x] Jenkins: `RUN_COUNT` param (default 14) + Benchmark Env A/B stages + Compare stage
+
+Run manually (no Jenkins needed):
+```bash
+bash ci/run-benchmark.sh A localhost            # 14 runs on local TK5
+bash ci/run-benchmark.sh B <oracle-vm-ip> ubuntu # 14 runs on Oracle VM
+python3 ci/compare-benchmarks.py                # compare + report
+```
+
+---
+
 ## Phase 7 — Collect Results
 
-- [ ] Define a shared, machine-readable results format (e.g. JSON) exported by both envs:
-  - Build time, return codes, report outputs, run timestamps
-- [ ] Add a collector step that pulls results from Env A and Env B into Jenkins
-- [ ] Store reports as pipeline artifacts for comparison
+- [x] Machine-readable results format: `benchmark.json` (per-run time, RC, fidelity) + `run-timing.json`
+- [x] Collector: `ci/run-benchmark.sh` runs N times per env and pulls `results/env-{a,b}/` back
+- [x] Reports stored as pipeline artifacts (`results/**` archived by the Jenkinsfile)
 
 ---
 
 ## Phase 8 — Evaluation Metrics
 
-- [ ] **Build Time**: from Jenkins stage durations + in-run timers on each env
-- [ ] **Functional Test Fidelity**: script a `diff` of Env A vs Env B reports (byte/field-level equality)
-- [ ] **Setup Complexity**: define a rubric and score each env
-  - e.g. wall-clock time to first successful run, number of manual steps, scripted vs manual setup
-- [ ] **Cost Analysis**: document $0 for both + hardware specs, electricity/notes for local
+- [x] **Build Time**: per-run timers in `benchmark.json`; `compare-benchmarks.py` computes mean/median/σ/min/max
+- [x] **Functional Test Fidelity**: date-normalized diff vs golden per run + cross-env equality
+- [ ] **Setup Complexity**: rubric placeholder in `evaluate-metrics.py` (finalize after Phase 5/6 provisioning)
+- [ ] **Cost Analysis**: $0 both + hardware specs placeholders (finalize after Phase 5/6)
 
 ---
 
 ## Phase 9 — Comparative Analysis Report
 
-- [ ] Create a report template (summary, per-env results, metrics table, conclusion)
-- [ ] Add a script to auto-generate the report from collected metrics
-- [ ] Publish the report as a Jenkins artifact (e.g. HTML/PDF/Markdown)
+- [x] Report template: `ci/generate-report.py` (summary, per-env results, metrics, conclusion → report.md/.html)
+- [x] Auto-generation from collected metrics + benchmark comparison (`comparison.md`)
+- [x] Published as Jenkins artifacts (`results/**` archived)
 
 ---
 

@@ -14,6 +14,14 @@ MF_HOST="${MF_HOST:-127.0.0.1}"
 MF_PORT="${MF_PORT:-3505}"
 SYSLOG_URL="${SYSLOG_URL:-http://127.0.0.1:8038/cgi-bin/tasks/syslog}"
 
+# --- Submission transport + FTP (consumed by ci/pipeline.py) ---------------
+MF_SUBMIT="${MF_SUBMIT:-ftp}"
+FTP_HOST="${FTP_HOST:-127.0.0.1}"
+FTP_PORT="${FTP_PORT:-2121}"
+FTP_USER="${FTP_USER:-herc01}"
+FTP_PASS="${FTP_PASS:-cul8tr}"
+export MF_SUBMIT FTP_HOST FTP_PORT FTP_USER FTP_PASS
+
 # --- Printer file (TK5 native) containing JES2 output.
 #     Native TK5:  <repo>/hercules/tk5/prt/prt00e.txt
 #     Docker TK4:  fetched via `docker exec tk4 cat /tk4-/prt/prt00e.txt`

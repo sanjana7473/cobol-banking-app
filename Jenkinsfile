@@ -1,25 +1,29 @@
-// COBOL Banking Application — CI/CD pipeline
+// COBOL Banking Application — CI/CD pipeline (TK5 via FTP)
 //
-// Stages: Checkout -> Build/Compile -> Unit Test -> Integration Test
-//         -> Deploy Env A -> Deploy Env B -> Collect Results
-//         -> Evaluate Metrics -> Publish Report
+// Stages:
+//   Checkout -> Build/Compile -> Unit Test -> Integration Test
+//            -> Benchmark Env A (RUN_COUNT x) -> Benchmark Env B (RUN_COUNT x)
+//            -> Compare & Evaluate -> Publish Report
 //
-// Environment A is the local machine (defaults to "localhost", i.e. the Jenkins
-// agent). Environment B is the Oracle Cloud Always Free VM (skip until Phase 6
+// Submission uses FTP (default): each JCL file is uploaded to the FTP server
+// watched by tk5-ftp-watcher.sh, which auto-submits it to the JES2 reader.
+//
+// Environment A is the local machine ("localhost" = the Jenkins agent).
+// Environment B is the Oracle Cloud Always Free VM (skipped until Phase 6
 // provisions it — leave ENV_B_HOST blank).
 //
 // Required Jenkins credentials:
 //   env-b-ssh : SSH private key (with username) for Environment B
 //
-// Build time is captured both by Jenkins' built-in stage timers (timestamps()
-// option) and by in-run timers written to results/*-timing.json.
+// Build time is captured by Jenkins' built-in stage timers (timestamps() option)
+// and by per-run timers written to results/env-*/benchmark.json.
 
 pipeline {
     agent any
 
     options {
         timestamps()
-        timeout(time: 60, unit: 'MINUTES')
+        timeout(time: 180, unit: 'MINUTES')
         buildDiscarder(logRotator(numToKeepStr: '20'))
         disableConcurrentBuilds()
         ansiColor('xterm')
@@ -35,13 +39,21 @@ pipeline {
         string(name: 'ENV_B_USER', defaultValue: 'ubuntu',
                description: 'SSH user for Environment B.')
         string(name: 'MF_HOST', defaultValue: '127.0.0.1',
-               description: 'CI mainframe host used for Build/Compile and Integration Test (JES2 reader).')
+               description: 'CI mainframe host for Build/Compile and Integration Test.')
         string(name: 'MF_PORT', defaultValue: '3505',
-               description: 'JES2 reader port (card reader).')
+               description: 'JES2 reader port (used in socket mode).')
         string(name: 'SYSLOG_URL', defaultValue: 'http://127.0.0.1:8038/cgi-bin/tasks/syslog',
                description: 'Hercules web-console syslog URL.')
         string(name: 'TK5_PRINTER', defaultValue: '',
                description: 'Optional: printer file path on the target (default auto-detect).')
+        string(name: 'MF_SUBMIT', defaultValue: 'ftp',
+               description: 'Submission transport: ftp (default) or socket.')
+        string(name: 'FTP_HOST', defaultValue: '127.0.0.1', description: 'FTP server host.')
+        string(name: 'FTP_PORT', defaultValue: '2121', description: 'FTP server port.')
+        string(name: 'FTP_USER', defaultValue: 'herc01', description: 'FTP user.')
+        string(name: 'FTP_PASS', defaultValue: 'cul8tr', description: 'FTP password.')
+        string(name: 'RUN_COUNT', defaultValue: '14',
+               description: 'Number of full compile+run repetitions per environment.')
     }
 
     environment {
@@ -53,70 +65,55 @@ pipeline {
         ENV_A_USER  = "${params.ENV_A_USER}"
         ENV_B_HOST  = "${params.ENV_B_HOST}"
         ENV_B_USER  = "${params.ENV_B_USER}"
+        MF_SUBMIT   = "${params.MF_SUBMIT}"
+        FTP_HOST    = "${params.FTP_HOST}"
+        FTP_PORT    = "${params.FTP_PORT}"
+        FTP_USER    = "${params.FTP_USER}"
+        FTP_PASS    = "${params.FTP_PASS}"
+        RUN_COUNT   = "${params.RUN_COUNT}"
     }
 
     stages {
         stage('Checkout') {
-            steps {
-                checkout scm
-            }
+            steps { checkout scm }
         }
 
         stage('Build / Compile') {
-            steps {
-                // Reset + allocate HERC01.LOAD and compile all 3 programs (IKFCBL00).
-                sh 'bash ci/compile.sh'
-            }
+            steps { sh 'bash ci/compile.sh' }
         }
 
         stage('Unit Test') {
-            steps {
-                // Data/layout integrity checks (Phase 3 will add COBOL test drivers).
-                sh 'bash ci/unit-test.sh'
-            }
+            steps { sh 'bash ci/unit-test.sh' }
         }
 
         stage('Integration Test') {
-            steps {
-                // Run BANKRUN and diff against golden expected output.
-                sh 'bash ci/integration-test.sh'
-            }
+            steps { sh 'bash ci/integration-test.sh' }
         }
 
-        stage('Deploy Environment A') {
-            steps {
-                sh 'bash ci/deploy-env.sh A "${ENV_A_HOST}" "${ENV_A_USER}"'
-            }
+        stage('Benchmark Env A (${RUN_COUNT}x)') {
+            steps { sh 'bash ci/run-benchmark.sh A "${ENV_A_HOST}" "${ENV_A_USER}"' }
         }
 
-        stage('Deploy Environment B') {
-            when {
-                expression { return params.ENV_B_HOST?.trim() }
-            }
+        stage('Benchmark Env B (${RUN_COUNT}x)') {
+            when { expression { return params.ENV_B_HOST?.trim() } }
             steps {
                 sshagent(['env-b-ssh']) {
-                    sh 'bash ci/deploy-env.sh B "${ENV_B_HOST}" "${ENV_B_USER}"'
+                    sh 'bash ci/run-benchmark.sh B "${ENV_B_HOST}" "${ENV_B_USER}"'
                 }
             }
         }
 
-        stage('Collect Results') {
+        stage('Compare & Evaluate') {
             steps {
-                sh 'bash ci/collect-results.sh'
-            }
-        }
-
-        stage('Evaluate Metrics') {
-            steps {
+                sh 'python3 ci/compare-benchmarks.py'
                 sh 'python3 ci/evaluate-metrics.py'
+                sh 'python3 ci/generate-report.py'
             }
         }
 
         stage('Publish Report') {
             steps {
-                sh 'python3 ci/generate-report.py'
-                archiveArtifacts artifacts: 'results/report.md, results/report.html, results/metrics.json, results/**/report.txt',
-                                 allowEmptyArchive: true
+                archiveArtifacts artifacts: 'results/**', allowEmptyArchive: true
             }
         }
     }
@@ -126,8 +123,6 @@ pipeline {
             junit allowEmptyResults: true, testResults: 'results/unit-test.xml'
             archiveArtifacts artifacts: 'results/**', allowEmptyArchive: true
         }
-        failure {
-            echo 'Pipeline failed. See stage logs above.'
-        }
+        failure { echo 'Pipeline failed. See stage logs above.' }
     }
 }

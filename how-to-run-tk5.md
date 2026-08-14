@@ -310,3 +310,33 @@ Uploaded files are automatically submitted to TK5's JES2 reader (port 3505).
 sg docker -c "docker stop tk5-ftp && docker rm tk5-ftp"
 pkill -f tk5-ftp-watcher
 ```
+
+## 7. Benchmark — 14× runs + comparison
+
+Run the full pipeline (reset → compile → BANKRUN) **14 times** on local TK5 and
+**14 times** on the Oracle VM, then compare build time and fidelity.
+
+```bash
+# On the local machine (Environment A) — or from Jenkins
+bash ci/run-benchmark.sh A localhost
+
+# Against the Oracle VM (Environment B)
+bash ci/run-benchmark.sh B <oracle-vm-ip> ubuntu
+
+# Compare the two and produce the report
+python3 ci/compare-benchmarks.py
+cat results/comparison.md
+```
+
+Config via env vars:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `RUN_COUNT` | `14` | runs per environment |
+| `MF_SUBMIT` | `ftp` | `ftp` (watcher) or `socket` (port 3505) |
+| `FTP_HOST` / `FTP_PORT` | `127.0.0.1` / `2121` | FTP server |
+| `FTP_USER` / `FTP_PASS` | `herc01` / `cul8tr` | FTP credentials |
+| `TK5_PRINTER` | `hercules/tk5/prt/prt00e.txt` | printer file on the target |
+
+Each environment must have its own TK5 running **and** its FTP server +
+`tk5-ftp-watcher.sh` running (Section 6), since submission is via FTP.

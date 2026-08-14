@@ -202,18 +202,28 @@ A declarative [`Jenkinsfile`](Jenkinsfile) implements the full pipeline:
 
 ```
 Checkout → Build/Compile → Unit Test → Integration Test
-        → Deploy Env A → Deploy Env B → Collect Results
-        → Evaluate Metrics → Publish Report
+        → Benchmark Env A (14×) → Benchmark Env B (14×)
+        → Compare & Evaluate → Publish Report
 ```
 
+- **Submission is via FTP** (default): each JCL file is uploaded to the FTP
+  server watched by `tk5-ftp-watcher.sh`, which auto-submits it to TK5's JES2
+  reader (`MF_SUBMIT=ftp`, `herc01`/`cul8tr` on port 2121).
 - Stage scripts live in [`ci/`](ci/); the driver is `ci/pipeline.py`
-  (`compile` / `run` / `all` / `extract`), which reuses the exact JCL from
-  `run-all.py` and adds an idempotent `RESET` step.
+  (`compile` / `run` / `all` / `extract`).
 - **Integration Test** runs `BANKRUN` and diffs the output against
   `reports/EXPECTED_OUTPUT.txt` (run date is normalized).
-- **Metrics/Report** produce `results/metrics.json` and
-  `results/report.md|.html` covering Build Time, Functional Test Fidelity,
-  Setup Complexity, and Cost Analysis.
+- **Benchmark** (`ci/benchmark.py`) runs the pipeline `RUN_COUNT` times (default
+  14) per environment; `ci/compare-benchmarks.py` produces the side-by-side
+  build-time statistics and fidelity verdict.
+
+### Run the 14×14 benchmark manually (no Jenkins needed)
+
+```bash
+bash ci/run-benchmark.sh A localhost              # 14 runs on local TK5
+bash ci/run-benchmark.sh B <oracle-vm-ip> ubuntu  # 14 runs on Oracle VM
+python3 ci/compare-benchmarks.py                  # compare + report
+```
 
 To provision Jenkins and configure credentials/webhooks, see
 [`jenkins/README.md`](jenkins/README.md). Environment B (Oracle Cloud VM) is
