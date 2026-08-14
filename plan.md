@@ -103,7 +103,7 @@ Build a Jenkins CI/CD pipeline that:
 - [x] Verify `setup_tk5.sh` + `run_hercules.sh` produce a working TK5 instance
 - [x] Confirm ports 3270 / 3505 / 8038 are reachable (Hercules 4.9.1-SDL, MVS 3.8j TK5 booted, JES2 `$HASP000 OK`)
 - [x] Add a script to run the pipeline and export reports to a known artifact path (`ci/run-benchmark.sh`)
-- [x] Record hardware specs (CPU, RAM, OS) for Cost Analysis — **4 vCPU · 15 GiB RAM · Linux (studio host)**
+- [x] Record hardware specs (CPU, RAM, OS) for Cost Analysis — **4 vCPU · 15 GiB RAM · Linux (local system)**
 
 ---
 

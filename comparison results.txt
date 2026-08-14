@@ -12,7 +12,7 @@ Method
 
 Hardware
 --------
-  Environment A (Local):          4 vCPU · 15 GiB RAM · Linux (studio host)
+  Environment A (Local):          4 vCPU · 15 GiB RAM · Linux (local system)
   Environment B (Oracle Cloud):   4 vCPU AMD EPYC 9J14 · 7.7 GiB RAM · Ubuntu 24.04
 
 Build Time (seconds per pipeline run)
