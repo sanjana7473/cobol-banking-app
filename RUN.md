@@ -37,6 +37,7 @@ docker run -d --name pure-ftpd \
   -p 2121:21 -p 30000-30009:30000-30009 \
   -e FTP_USER_NAME=herc01 -e FTP_USER_PASS=cul8tr \
   -e FTP_USER_HOME=/home/ftpusers/herc01 \
+  -e FTP_USER_UID=$(id -u) -e FTP_USER_GID=$(id -g) \
   -e PUBLICHOST=127.0.0.1 \
   -v "$PWD/hercules/tk5/rdr:/home/ftpusers/herc01" \
   stilliard/pure-ftpd:latest                                      # FTP server (uploads land in rdr/)
