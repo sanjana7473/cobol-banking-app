@@ -32,6 +32,16 @@ COBOL_DIR = os.path.join(ROOT, "cobol")
 RAKF = "CLASS=A,USER=HERC01,PASSWORD=CUL8TR"
 PROGRAMS = ["VALDTRAN", "UPDTBAL", "RPRTGEN"]
 
+# --- Compiler / linker configuration (single source of truth) ---------------
+# Environment A and Environment B both run this exact module, so they compile
+# with the identical compiler, parms, and JCL. Overridable via environment
+# variables for advanced tuning.
+COBOL_COMPILER = os.environ.get("COBOL_COMPILER", "IKFCBL00")
+COBOL_PARMS = os.environ.get("COBOL_PARMS", "LOAD,NODECK,SIZE=2048K,BUF=1024K")
+COBOL_SYSLIB = os.environ.get("COBOL_SYSLIB", "SYS1.COBLIB")
+LINKER = os.environ.get("LINKER", "IEWL")
+LINKER_PARMS = os.environ.get("LINKER_PARMS", "LIST,XREF")
+
 
 # ---------------------------------------------------------------------------
 # JCL builders (identical to run-all.py)
@@ -77,7 +87,7 @@ def compile_jcl(pgm):
         src = f.read()
     jobname = pgm[:4] + "COMP"
     return f"""//{jobname} JOB (ACCT),'COMP-{pgm[:4]}',{RAKF}
-//COB      EXEC PGM=IKFCBL00,PARM='LOAD,NODECK,SIZE=2048K,BUF=1024K'
+//COB      EXEC PGM={COBOL_COMPILER},PARM='{COBOL_PARMS}'
 //SYSPRINT DD SYSOUT=*
 //SYSUT1   DD UNIT=SYSDA,SPACE=(460,(700,100))
 //SYSUT2   DD UNIT=SYSDA,SPACE=(460,(700,100))
@@ -89,8 +99,8 @@ def compile_jcl(pgm):
 {src.rstrip()}
 /*
 //SYSPUNCH DD DUMMY
-//LKED     EXEC PGM=IEWL,PARM='LIST,XREF'
-//SYSLIB   DD DSN=SYS1.COBLIB,DISP=SHR
+//LKED     EXEC PGM={LINKER},PARM='{LINKER_PARMS}'
+//SYSLIB   DD DSN={COBOL_SYSLIB},DISP=SHR
 //SYSLIN   DD DSN=&&LOADSET,DISP=(OLD,DELETE)
 //SYSLMOD  DD DSN=HERC01.LOAD({pgm}),DISP=SHR
 //SYSUT1   DD UNIT=SYSDA,SPACE=(CYL,(1,1))

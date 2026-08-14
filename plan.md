@@ -62,10 +62,15 @@ Build a Jenkins CI/CD pipeline that:
 
 ## Phase 2 — Build/Compile
 
-- [ ] Make compilation reproducible and parameterized:
-  - Reuse `run-all.py` compile step (or extract a standalone `compile.sh`)
-  - Ensure identical compiler (`IKFCBL00`), parms, and JCL on both environments
-- [ ] Log compile return codes (RC=0000) and treat non-zero as pipeline failure
+- [x] Make compilation reproducible and parameterized:
+  - `ci/pipeline.py` is the single source of truth for compile/run JCL;
+    `run-all.py` now delegates to it (duplicate JCL removed)
+  - `ci/compile.sh` is the standalone Build/Compile stage entry
+  - Compiler/linker config (`IKFCBL00`, `PARM`, `SYSLIB`) centralized and
+    env-overridable, so both environments compile identically
+- [x] Log compile return codes (RC=0000) and treat non-zero as pipeline failure
+  - `do_compile` snapshots the syslog, logs `IEFACTRT` lines, and returns
+    non-zero on any non-zero completion code; `run-all.py` exits non-zero too
 
 ---
 
