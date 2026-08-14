@@ -238,8 +238,8 @@ START=$(grep -an "START  JOB.*BANKRUN" "$PRT" | tail -1 | cut -d: -f1)
 END=$(grep -an "END   JOB.*BANKRUN" "$PRT" | tail -1 | cut -d: -f1)
 sed -n "${START},${END}p" "$PRT"
 
-# Saved reports copy
-cat "/home/ubuntu/Cobol Code Final/reports/ALL_REPORTS_TK5.txt"
+# Golden expected output
+cat "/home/ubuntu/Cobol Code Final/reports/EXPECTED_OUTPUT.txt"
 ```
 
 ## 5. Stop TK5
@@ -253,19 +253,6 @@ pkill -9 -f hercules
 ss -tlnp | grep -E "3270|3505|8038"
 # (should be empty)
 ```
-
-## Key Differences: TK4 vs TK5
-
-| | TK4 (Docker) | TK5 (Native Hercules) |
-|---|---|---|
-| Start | `bash start-lab.sh` | Run Hercules binary directly |
-| Stop | `bash stop-lab.sh` | `pkill hercules` |
-| Submit JCL | Port 3505 | Port 3505 (same) |
-| Syslog | `http://localhost:8038` | `http://localhost:8038` (same) |
-| Printer file | Docker: `/tk4-/prt/prt00e.txt` | Native: `hercules/tk5/prt/prt00e.txt` |
-| Menu system | RPF | ISPF v2.2 + RPF |
-| Login | HERC01 / CUL8TR | HERC01 / CUL8TR |
-| FTP | Docker container (port 2121) | See Section 6 below |
 
 ## 6. FTP Upload (Optional)
 

@@ -23,8 +23,8 @@ Build a Jenkins CI/CD pipeline that:
 - Data: `cobol/TRANSIN.DAT` (transactions), `cobol/ACCTMAST.DAT` (account master)
 - JCL: `jcl/BANKRUN.jcl` (master job) + one compile/run job per program
 - Runner: `run-all.py` (allocates `HERC01.LOAD`, compiles all 3 programs, runs `BANKRUN`, extracts reports)
-- Local env scripts: TK4- Docker (`mainframe-ftp-lab/`) and TK5 native (`setup_tk5.sh`, `run_hercules.sh`)
-- Sample reports: `reports/ALL_REPORTS.txt`, `reports/ALL_REPORTS_TK5.txt`
+- Local env scripts: TK5 native (`setup_tk5.sh`, `run_hercules.sh`)
+- Golden expected output: `reports/EXPECTED_OUTPUT.txt` (fidelity reference)
 
 ---
 
@@ -34,7 +34,7 @@ Build a Jenkins CI/CD pipeline that:
 - [x] Decide `TRANSIN` / `ACCTMAST` naming → **renamed data files** `TRANSACT.DAT`→`TRANSIN.DAT`, `ACCOUNTS.DAT`→`ACCTMAST.DAT` (datasets `HERC01.TRANSIN` / `HERC01.ACCTMAST`)
 - [x] Fix data inconsistency → **rewrote both data files as clean 80-byte fixed-width records**; corrected 9-char dates → 8-char; fixed `ACCOUNT-RECORD` filler `X(18)`→`X(20)`; added 3 transactions so all 6 validation codes are exercised
 - [x] `ACCTREC.cpy` → kept as reference copybook (filler fixed); programs still inline the layout (defer `COPY` wiring to Phase 2 build)
-- [x] Standardize on TK5 → comparison path uses **TK5 native Hercules**; Docker TK4- lab retained as reference only
+- [x] Standardize on TK5 → comparison path uses **TK5 native Hercules** (Docker TK4- lab removed)
 - [x] Pin expected output → **`reports/EXPECTED_OUTPUT.txt`** (golden): READ=13, VALID=7, INVALID=6 · PROCESSED=7, DEPOSITS=4, WITHDRAWALS=3 · combined balance `$689,200.00` for testing
 
 ---

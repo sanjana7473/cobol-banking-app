@@ -9,16 +9,14 @@ results/
 # Hercules / TK5 runtime (large + machine-specific; recreated by setup_tk5.sh)
 hercules/
 
+# Generated report from run-all.py (golden reference is EXPECTED_OUTPUT.txt)
+reports/ALL_REPORTS.txt
+
 # Secrets / SSH private keys (never commit)
 *.key
 *.pem
 id_rsa
 id_ed25519
-
-# Stale generated reports (superseded by reports/EXPECTED_OUTPUT.txt)
-reports/ALL_REPORTS.txt
-reports/ALL_REPORTS_TK5.txt
-reports/VALIDATION_REPORT.txt
 
 # OS
 .DS_Store

@@ -1,0 +1,67 @@
+================================================================================
+COBOL BANKING APPLICATION — COMPARATIVE ANALYSIS RESULTS
+Local (Env A) vs Oracle Cloud Always Free VM (Env B)
+================================================================================
+
+Method
+------
+- 14 full pipeline runs per environment (reset -> allocate -> compile x3 -> BANKRUN)
+- Submission via FTP (herc01/cul8tr @ port 2121) -> tk5-ftp-watcher.sh -> JES2
+- MVS 3.8j TK5 on Hercules 4.9.1-SDL (identical software stack on both hosts)
+- Timing = real wall-clock (completion polling, no fixed sleeps)
+
+Hardware
+--------
+  Environment A (Local):          4 vCPU · 15 GiB RAM · Linux (studio host)
+  Environment B (Oracle Cloud):   4 vCPU AMD EPYC 9J14 · 7.7 GiB RAM · Ubuntu 24.04
+
+Build Time (seconds per pipeline run)
+-------------------------------------
+  Metric            Local (Env A)              Oracle Cloud (Env B)
+  ---------------   ------------------------   --------------------------------
+  Total pipeline    mean 40.909  (median 40.79)   mean 59.856  (median 60.25)
+                    std-dev 1.223                  std-dev 1.234
+                    min 39.42 / max 42.76          min 56.5  / max 61.1
+
+  Compile           mean 6.048   (median 6.05)    mean 21.096  (median 21.09)
+                    std-dev 0.016                  std-dev 0.844
+                    min 6.03 / max 6.08            min 19.02 / max 23.22
+
+  Run (BANKRUN)     mean 3.885   (median 4.025)   mean 8.059   (median 8.06)
+                    std-dev 0.537                  std-dev 0.014
+                    min 2.02 / max 4.05            min 8.04  / max 8.08
+
+Functional Test Fidelity
+------------------------
+  Local:        14/14 reports match golden output
+  Oracle Cloud: 14/14 reports match golden output
+  Return codes: RC=0000 on 14/14 (local) and 14/14 (Oracle Cloud)
+  Cross-env:    reports are byte-identical across all 28 runs
+
+Verdict
+-------
+  Both environments produce IDENTICAL functional results across all 28 runs
+  (14 local + 14 Oracle Cloud), so functional fidelity is equivalent.
+
+  Oracle Cloud is on average ~18.95s SLOWER per pipeline run than local
+  (40.91s vs 59.86s mean total). The gap is almost entirely compile time
+  (6.05s local vs 21.10s Oracle) — the Oracle Always Free instance's CPU is
+  noticeably slower than the local host for IKFCBL00 compilation. The run
+  (BANKRUN) step also differs (3.89s vs 8.06s).
+
+Setup Complexity
+----------------
+  Both environments use the same setup_tk5.sh + pure-ftpd + tk5-ftp-watcher.sh
+  path. The only difference is the transport target:
+    Env A: localhost
+    Env B: SSH to the Oracle VM (150.136.240.50)
+
+Cost Analysis
+-------------
+  Environment A (Local):        $0 recurring (existing hardware)
+  Environment B (Oracle Cloud): $0 recurring (Always Free tier)
+
+================================================================================
+Generated from results/env-a/benchmark.json and results/env-b/benchmark.json
+via ci/compare-benchmarks.py.
+================================================================================
