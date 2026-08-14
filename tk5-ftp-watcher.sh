@@ -20,6 +20,23 @@ echo "Submit port: $TK5_PORT"
 echo "Upload: ftp localhost 2121  (user: herc01 / pass: cul8tr)"
 echo ""
 
+# Submit a JCL file to the TK5 JES2 reader (port 3505). Uses Python's socket
+# module so it works on hosts without netcat.
+submit_to_reader() {
+    python3 - "$TK5_PORT" "$1" <<'PYEOF'
+import socket, sys
+port = int(sys.argv[1])
+path = sys.argv[2]
+with open(path, "rb") as fh:
+    data = fh.read()
+s = socket.create_connection(("127.0.0.1", port), timeout=5)
+try:
+    s.sendall(data)
+finally:
+    s.close()
+PYEOF
+}
+
 while true; do
     for f in "$RDR_DIR"/*; do
         [ -f "$f" ] || continue
@@ -32,7 +49,7 @@ while true; do
 
         if [ -f "$f" ] && [ -s "$f" ]; then
             echo "  → Submitting $base to TK5..."
-            cat "$f" | nc -w 5 localhost "$TK5_PORT"
+            submit_to_reader "$f"
             echo "  ✓ Done: $base"
             mv "$f" "$RDR_DIR/.done_$base"
         fi

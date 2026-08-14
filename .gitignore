@@ -6,6 +6,9 @@ __pycache__/
 # CI/generated results (produced by Jenkins runs)
 results/
 
+# Hercules / TK5 runtime (large + machine-specific; recreated by setup_tk5.sh)
+hercules/
+
 # Secrets / SSH private keys (never commit)
 *.key
 *.pem
