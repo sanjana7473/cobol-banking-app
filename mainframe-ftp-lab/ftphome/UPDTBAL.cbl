@@ -117,7 +117,7 @@
        MAIN-LOGIC.
            PERFORM INITIALIZATION.
            PERFORM LOAD-ACCOUNTS.
-           PERFORM PROCESS-VALIDATED
+           PERFORM PROCESS-VALIDATED THRU PROCESS-EXIT
                UNTIL VALIDATED-EOF.
            PERFORM WRITE-ALL-ACCOUNTS.
            PERFORM PRINT-SUMMARY.
@@ -191,7 +191,7 @@
                    ADD VTR-AMOUNT TO
                        WS-ACCT-BALANCE(WS-ACCT-IDX)
                    ADD 1 TO WS-DEPOSITS
-               IF VTR-TRANSACTION-TYPE = 'W'
+               ELSE
                    SUBTRACT VTR-AMOUNT FROM
                        WS-ACCT-BALANCE(WS-ACCT-IDX)
                    ADD 1 TO WS-WITHDRAWALS

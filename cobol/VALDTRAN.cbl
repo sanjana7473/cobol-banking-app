@@ -149,51 +149,45 @@
       *    Validate transaction type
            IF NOT TR-DEPOSIT AND NOT TR-WITHDRAWAL
                MOVE 'I' TO VTR-STATUS
-               MOVE 02 TO VTR-ERROR-CODE
-               PERFORM WRITE-INVALID-TRANS
-               GO TO VALIDATE-EXIT.
+               MOVE 02 TO VTR-ERROR-CODE.
 
       *    Validate amount
-           IF TR-AMOUNT = 0
-               MOVE 'I' TO VTR-STATUS
-               MOVE 03 TO VTR-ERROR-CODE
-               PERFORM WRITE-INVALID-TRANS
-               GO TO VALIDATE-EXIT.
+           IF VTR-VALID
+               IF TR-AMOUNT = 0
+                   MOVE 'I' TO VTR-STATUS
+                   MOVE 03 TO VTR-ERROR-CODE.
 
       *    Look up account
-           PERFORM FIND-ACCOUNT.
-           IF NOT ACCT-FOUND
-               MOVE 'I' TO VTR-STATUS
-               MOVE 01 TO VTR-ERROR-CODE
-               PERFORM WRITE-INVALID-TRANS
-               GO TO VALIDATE-EXIT.
+           IF VTR-VALID
+               PERFORM FIND-ACCOUNT
+               IF NOT ACCT-FOUND
+                   MOVE 'I' TO VTR-STATUS
+                   MOVE 01 TO VTR-ERROR-CODE.
 
       *    Check account status
-           IF ACCT-CLOSED
-               MOVE 'I' TO VTR-STATUS
-               MOVE 04 TO VTR-ERROR-CODE
-               PERFORM WRITE-INVALID-TRANS
-               GO TO VALIDATE-EXIT.
+           IF VTR-VALID
+               IF ACCT-CLOSED
+                   MOVE 'I' TO VTR-STATUS
+                   MOVE 04 TO VTR-ERROR-CODE.
 
-           IF ACCT-FROZEN
-               MOVE 'I' TO VTR-STATUS
-               MOVE 05 TO VTR-ERROR-CODE
-               PERFORM WRITE-INVALID-TRANS
-               GO TO VALIDATE-EXIT.
+           IF VTR-VALID
+               IF ACCT-FROZEN
+                   MOVE 'I' TO VTR-STATUS
+                   MOVE 05 TO VTR-ERROR-CODE.
 
       *    For withdrawals, check sufficient funds
-           IF TR-WITHDRAWAL AND TR-AMOUNT > ACCT-BALANCE
-               MOVE 'I' TO VTR-STATUS
-               MOVE 06 TO VTR-ERROR-CODE
-               PERFORM WRITE-INVALID-TRANS
-               GO TO VALIDATE-EXIT.
+           IF VTR-VALID
+               IF TR-WITHDRAWAL AND TR-AMOUNT > ACCT-BALANCE
+                   MOVE 'I' TO VTR-STATUS
+                   MOVE 06 TO VTR-ERROR-CODE.
 
-      *    Transaction is valid
+      *    Write the validated transaction (valid or invalid)
            MOVE VALIDATED-TRANSACTION-RECORD TO WS-VALIDATED-RECORD.
            WRITE VALIDATED-REC FROM WS-VALIDATED-RECORD.
-           ADD 1 TO WS-TRANS-VALID.
-       VALIDATE-EXIT.
-      *    End of validation routine.
+           IF VTR-VALID
+               ADD 1 TO WS-TRANS-VALID
+           ELSE
+               ADD 1 TO WS-TRANS-INVALID.
 
        FIND-ACCOUNT.
            MOVE 'N' TO WS-ACCT-FOUND.
@@ -211,11 +205,6 @@
                IF ACCT-NUMBER = TR-ACCOUNT-NUMBER
                    MOVE 'Y' TO WS-ACCT-FOUND
                    MOVE 'Y' TO WS-ACCT-FILE-EOF.
-
-       WRITE-INVALID-TRANS.
-           MOVE VALIDATED-TRANSACTION-RECORD TO WS-VALIDATED-RECORD.
-           WRITE VALIDATED-REC FROM WS-VALIDATED-RECORD.
-           ADD 1 TO WS-TRANS-INVALID.
 
        PRINT-SUMMARY.
            MOVE SPACES TO ERROR-LINE.

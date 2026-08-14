@@ -203,11 +203,21 @@ def bankrun_jcl():
 # Syslog + return codes
 # ---------------------------------------------------------------------------
 
+def _full_syslog_url(url):
+    """Return the syslog URL with msgcount=0 so the full (untruncated) log is
+    returned. The Hercules web console defaults to the last ~22 lines, which
+    breaks append-only completion polling."""
+    if "msgcount" in url:
+        return url
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}msgcount=0"
+
+
 def fetch_syslog(url):
     """Return the Hercules web-console syslog as a list of stripped lines,
     or None if unavailable."""
     try:
-        resp = urllib.request.urlopen(url, timeout=10)
+        resp = urllib.request.urlopen(_full_syslog_url(url), timeout=10)
         html = resp.read().decode("utf-8", "replace")
     except Exception as e:
         print(f"  (syslog unavailable: {e})", file=sys.stderr)
@@ -350,12 +360,18 @@ def extract_report_text(raw):
 
     reports = []
     for line in block[report_start:]:
-        s = line.strip()
+        # Strip form feeds before classifying: page breaks precede each report
+        # header and the trailing JES2 separator/banner page.
+        s = line.replace("\f", "").strip()
         # Skip JES2/control noise; keep report lines (including blank lines and
         # account-detail lines that begin with a digit).
-        if s.startswith(("IEF", "$HASP", "$", "*", "START", "END", "JOB")) or "\f" in line:
+        if s.startswith(("IEF", "$HASP", "$", "*", "START", "END", "JOB")):
             continue
         reports.append(s)
+        # "COMBINED TOTAL BALANCE" is the last line RPRTGEN writes; everything
+        # after it is the JES2 job separator/banner page, not report data.
+        if "COMBINED TOTAL BALANCE" in s:
+            break
     while reports and reports[-1] == "":
         reports.pop()  # drop trailing blank lines left by JES2 formatting
     return "\n".join(reports) + "\n"

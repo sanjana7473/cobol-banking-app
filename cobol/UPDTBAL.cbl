@@ -190,11 +190,11 @@
                IF VTR-TRANSACTION-TYPE = 'D'
                    ADD VTR-AMOUNT TO
                        WS-ACCT-BALANCE(WS-ACCT-IDX)
-                   ADD 1 TO WS-DEPOSITS.
-               IF VTR-TRANSACTION-TYPE = 'W'
+                   ADD 1 TO WS-DEPOSITS
+               ELSE
                    SUBTRACT VTR-AMOUNT FROM
                        WS-ACCT-BALANCE(WS-ACCT-IDX)
-                   ADD 1 TO WS-WITHDRAWALS.
+                   ADD 1 TO WS-WITHDRAWALS
                MOVE WS-RUN-DATE TO
                    WS-ACCT-UPDATE(WS-ACCT-IDX)
                MOVE 'Y' TO WS-UPDATE-DONE.

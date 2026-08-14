@@ -34,7 +34,11 @@ now_ms() { python3 -c 'import time; print(int(time.time() * 1000))'; }
 is_local() { [[ -z "${1:-}" || "$1" == "localhost" || "$1" == "127.0.0.1" ]]; }
 
 # ssh options for non-interactive, first-contact hosts.
+# Set SSH_KEY to a private-key path to use key-based auth (e.g. for the Oracle VM).
 SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=accept-new)
+if [[ -n "${SSH_KEY:-}" ]]; then
+    SSH_OPTS+=(-i "$SSH_KEY")
+fi
 
 # Locate a usable printer file on the local machine:
 #   - if $TK5_PRINTER exists, use it
