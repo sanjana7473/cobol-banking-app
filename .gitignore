@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# CI/generated results (produced by Jenkins runs)
+results/
+
 # Stale generated reports (superseded by reports/EXPECTED_OUTPUT.txt)
 reports/ALL_REPORTS.txt
 reports/ALL_REPORTS_TK5.txt

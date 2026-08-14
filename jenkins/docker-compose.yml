@@ -1,0 +1,24 @@
+services:
+  jenkins:
+    build: .
+    container_name: jenkins
+    restart: unless-stopped
+    # root so Jenkins can drive the local Docker daemon (TK4 lab) and reach the
+    # local mainframe's JES2 reader on port 3505.
+    user: root
+    ports:
+      - "8080:8080"    # web UI
+      - "50000:50000"  # agent (JNLP) port
+    environment:
+      # Adjust to the host's timezone if desired
+      TZ: "UTC"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      # Optional: expose the host Docker daemon so pipelines can manage the TK4 lab
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Optional: mount the repo so the 'localhost' Environment A target can find
+      # the native TK5 printer file. Adjust the left-hand path to your checkout.
+      # - ../..:/workspace/cobol-banking-app
+
+volumes:
+  jenkins_home:

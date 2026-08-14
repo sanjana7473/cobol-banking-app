@@ -41,23 +41,22 @@ Build a Jenkins CI/CD pipeline that:
 
 ## Phase 1 — CI/CD Pipeline (Jenkins)
 
-- [ ] Set up a Jenkins server (local or cloud) with:
-  - GitHub plugin + credentials
-  - SSH credentials to Environment A and Environment B
-  - Artifact/workspace config
-- [ ] Write `Jenkinsfile` with stages:
-  - Checkout (from GitHub)
-  - Build/Compile
-  - Unit Test
-  - Integration Test
-  - Deploy to Environment A
-  - Deploy to Environment B
-  - Collect Results (pull reports from both envs)
-  - Evaluate Metrics (build time, fidelity, complexity, cost)
-  - Publish Comparative Analysis Report
-- [ ] Configure build triggers (GitHub webhook or SCM polling)
-- [ ] Capture stage durations for Build Time metric
-- [ ] Verify a full pipeline run end-to-end
+- [x] Write `Jenkinsfile` with stages:
+  - Checkout → Build/Compile → Unit Test → Integration Test
+  - Deploy Env A → Deploy Env B (skipped until Phase 6) → Collect Results
+  - Evaluate Metrics → Publish Comparative Analysis Report
+- [x] CI helper scripts under `ci/`:
+  - `pipeline.py` (`compile`/`run`/`all`/`extract`) — reuses `run-all.py` JCL,
+    idempotent via a `RESET` step; returns non-zero on non-zero return codes
+  - `compile.sh`, `unit-test.py`+`.sh` (12 checks: layout + all 6 validation-code
+    coverage + golden), `integration-test.sh` (golden diff, date-normalized)
+  - `deploy-env.sh`, `collect-results.sh`
+  - `evaluate-metrics.py`, `generate-report.py` (metrics.json → report.md/.html)
+- [x] Configure build triggers (webhook + pollSCM documented in `jenkins/README.md`)
+- [x] Capture stage durations (Jenkins `timestamps()` + in-run `*-timing.json`)
+- [x] Jenkins provisioning: `jenkins/docker-compose.yml` + `Dockerfile` (plugins) + `README.md`
+- [ ] Start Jenkins and add `env-b-ssh` credential (user action — see `jenkins/README.md`)
+- [ ] Verify a full pipeline run end-to-end (requires a running mainframe + Jenkins)
 
 ---
 

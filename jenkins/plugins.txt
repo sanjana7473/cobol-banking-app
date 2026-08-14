@@ -1,0 +1,11 @@
+# Required Jenkins plugins (installed on first boot via jenkins-plugin-cli)
+workflow-aggregator
+git
+github
+github-branch-source
+timestamper
+ansicolor
+ssh-agent
+junit
+pipeline-stage-view
+blueocean

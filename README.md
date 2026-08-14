@@ -24,6 +24,22 @@ Cobol Code Final/
 │   ├── VALDTRAN.jcl           # compile + run VALDTRAN
 │   ├── UPDTBAL.jcl            # compile + run UPDTBAL
 │   └── RPRTGEN.jcl            # compile + run RPRTGEN
+├── ci/                        # CI/CD helper scripts (one per Jenkins stage)
+│   ├── pipeline.py            # compile/run/extract driver (reuses run-all.py JCL)
+│   ├── compile.sh             # Build/Compile stage
+│   ├── unit-test.py + .sh     # Unit Test stage
+│   ├── integration-test.sh    # Integration Test stage (golden diff)
+│   ├── deploy-env.sh          # Deploy to Environment A/B
+│   ├── collect-results.sh     # Collect Results stage
+│   ├── evaluate-metrics.py    # Evaluate Metrics stage
+│   └── generate-report.py     # Publish Report stage
+├── jenkins/                   # Jenkins master provisioning
+│   ├── docker-compose.yml
+│   ├── Dockerfile             # pre-installs plugins
+│   ├── plugins.txt
+│   └── README.md
+├── Jenkinsfile                # CI/CD pipeline definition
+├── plan.md                    # implementation plan
 └── mainframe-ftp-lab/         # Docker TK4- environment
     ├── start-lab.sh            # start containers
     ├── stop-lab.sh             # stop containers
@@ -177,6 +193,31 @@ TRANSIN + ACCTMAST → VALDTRAN → VALIDATE + VALERRORS
 VALIDATE + ACCTMAST → UPDTBAL  → ACCTUPD + UPDATERPT
 ACCTUPD             → RPRTGEN  → FINALRPT
 ```
+
+---
+
+## CI/CD Pipeline (Jenkins)
+
+A declarative [`Jenkinsfile`](Jenkinsfile) implements the full pipeline:
+
+```
+Checkout → Build/Compile → Unit Test → Integration Test
+        → Deploy Env A → Deploy Env B → Collect Results
+        → Evaluate Metrics → Publish Report
+```
+
+- Stage scripts live in [`ci/`](ci/); the driver is `ci/pipeline.py`
+  (`compile` / `run` / `all` / `extract`), which reuses the exact JCL from
+  `run-all.py` and adds an idempotent `RESET` step.
+- **Integration Test** runs `BANKRUN` and diffs the output against
+  `reports/EXPECTED_OUTPUT.txt` (run date is normalized).
+- **Metrics/Report** produce `results/metrics.json` and
+  `results/report.md|.html` covering Build Time, Functional Test Fidelity,
+  Setup Complexity, and Cost Analysis.
+
+To provision Jenkins and configure credentials/webhooks, see
+[`jenkins/README.md`](jenkins/README.md). Environment B (Oracle Cloud VM) is
+skipped until Phase 6 provisions it (leave `ENV_B_HOST` blank).
 
 ---
 
